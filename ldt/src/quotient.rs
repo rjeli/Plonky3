@@ -88,13 +88,14 @@ where
                 let log2_height = log2_strict_usize(height);
                 let g = F::two_adic_generator(log2_height);
                 let subgroup = g.powers().take(height).collect_vec();
+                let shift = F::generator();
 
                 let denominators: Vec<EF> = subgroup
                     .iter()
                     .flat_map(|&x| {
                         openings
                             .iter()
-                            .map(move |opening| EF::from_base(x) - opening.point)
+                            .map(move |opening| EF::from_base(x) * shift - opening.point)
                     })
                     .collect();
                 let inv_denominators = batch_multiplicative_inverse(&denominators);

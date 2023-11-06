@@ -4,13 +4,12 @@ use itertools::Itertools;
 use p3_air::{Air, TwoRowMatrixView};
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
-use p3_dft::{NaiveDft, TwoAdicSubgroupDft};
 use p3_field::{
     cyclic_subgroup_coset_known_order, AbstractExtensionField, AbstractField, Field, PackedField,
     TwoAdicField,
 };
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::{Matrix, MatrixGet, MatrixRows};
+use p3_matrix::{Matrix, MatrixGet};
 use p3_maybe_rayon::{IndexedParallelIterator, MaybeIntoParIter, ParallelIterator};
 use p3_util::log2_strict_usize;
 use tracing::{info_span, instrument};
@@ -35,9 +34,8 @@ where
     let log_degree = log2_strict_usize(degree);
     let log_quotient_degree = 1; // TODO
 
-    dbg!(trace.height(), trace.width());
-
     let g_subgroup = SC::Domain::two_adic_generator(log_degree);
+    let shift_inv = config.pcs().coset_shift().inverse();
 
     let pcs = config.pcs();
     let (trace_commit, trace_data) =
@@ -49,15 +47,6 @@ where
     let mut trace_ldes = pcs.get_ldes(&trace_data);
     assert_eq!(trace_ldes.len(), 1);
     let trace_lde = trace_ldes.pop().unwrap();
-
-    let h = trace_lde.height();
-    let col: Vec<_> = (0..h)
-        .map(|i| trace_lde.row(i).into_iter().next().unwrap())
-        .collect();
-    let cpoly = NaiveDft.idft(col);
-    let col_nonzero = cpoly.into_iter().take_while(|x| !x.is_zero()).count();
-    dbg!(col_nonzero);
-
     let quotient_values = quotient_values(
         config,
         air,
@@ -66,17 +55,6 @@ where
         trace_lde,
         alpha,
     );
-
-    // TODO: don't do this.
-    let mut quotient_poly = NaiveDft.idft(quotient_values);
-    let shift = SC::Challenge::from_base(config.pcs().coset_shift());
-    let inv_shift = shift.inverse();
-    /*
-    for (coeff, pow) in quotient_poly.iter_mut().zip(inv_shift.powers()) {
-        *coeff *= pow;
-    }
-    */
-    let quotient_values = NaiveDft.dft(quotient_poly.clone());
 
     let quotient_chunks_flattened = info_span!("decompose quotient polynomial")
         .in_scope(|| decompose_and_flatten::<SC>(quotient_values, log_quotient_degree));
@@ -90,19 +68,14 @@ where
     };
 
     let zeta: SC::Challenge = challenger.sample_ext_element();
-
-    println!("qp at zeta: {}", eval_poly(&quotient_poly, zeta));
-    println!(
-        "qp at zeta*inv_shift: {}",
-        eval_poly(&quotient_poly, zeta * inv_shift)
-    );
-
     let (opened_values, opening_proof) = pcs.open_multi_batches(
         &[
             (&trace_data, &[zeta, zeta * g_subgroup]),
             (
                 &quotient_data,
-                &[(zeta * inv_shift).exp_power_of_2(log_quotient_degree)],
+                // Since the quotient is computed from the shifted trace LDE,
+                // we need to correct for the extra shift.
+                &[(zeta * shift_inv).exp_power_of_2(log_quotient_degree)],
             ),
         ],
         challenger,
@@ -110,10 +83,6 @@ where
     let trace_local = opened_values[0][0][0].clone();
     let trace_next = opened_values[0][1][0].clone();
     let quotient_chunks = opened_values[1][0][0].clone();
-
-    dbg!(eval_poly(&quotient_chunks, zeta));
-    dbg!(eval_poly(&quotient_chunks, zeta * inv_shift));
-
     let opened_values = OpenedValues {
         trace_local,
         trace_next,
@@ -124,13 +93,6 @@ where
         opened_values,
         opening_proof,
     }
-}
-
-fn eval_poly<F: Field>(poly: &[F], pt: F) -> F {
-    poly.iter()
-        .zip(pt.powers())
-        .map(|(&coeff, x)| coeff * x)
-        .sum()
 }
 
 #[instrument(name = "compute quotient polynomial", skip_all)]

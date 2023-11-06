@@ -7,7 +7,7 @@ use p3_commit::{
     DirectMmcs, OpenedValues, OpenedValuesForPoint, OpenedValuesForRound, Pcs, UnivariatePcs,
     UnivariatePcsWithLde,
 };
-use p3_dft::TwoAdicSubgroupDft;
+use p3_dft::{deg, TwoAdicSubgroupDft};
 use p3_field::{ExtensionField, Field, TwoAdicField};
 use p3_interpolation::interpolate_coset;
 use p3_matrix::dense::RowMajorMatrixView;
@@ -107,6 +107,10 @@ where
                     .iter()
                     .map(|(data, points)| {
                         let matrices = self.mmcs.get_matrices(data);
+                        for m in &matrices {
+                            dbg!(m.dimensions());
+                            dbg!(deg(&m.rows().map(|r| r[0]).collect_vec()));
+                        }
                         points
                             .iter()
                             .map(|&point| eval_at_point(&matrices, point))
@@ -229,4 +233,10 @@ fn transpose<T: Clone>(vec: Vec<Vec<T>>) -> Vec<Vec<T>> {
     (0..m)
         .map(|r| (0..n).map(|c| vec[c][r].clone()).collect())
         .collect()
+}
+
+fn col<F, M: MatrixRows<F>>(m: &M, c: usize) -> Vec<F> {
+    (0..m.height())
+        .map(|r| m.row(r).into_iter().nth(c).unwrap())
+        .collect_vec()
 }

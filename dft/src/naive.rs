@@ -29,6 +29,14 @@ impl<F: TwoAdicField> TwoAdicSubgroupDft<F> for NaiveDft {
     }
 }
 
+pub fn deg<F: TwoAdicField>(v: &[F]) -> usize {
+    NaiveDft
+        .idft(v.to_vec())
+        .into_iter()
+        .take_while(|x| !x.is_zero())
+        .count()
+}
+
 #[cfg(test)]
 mod tests {
     use alloc::vec;

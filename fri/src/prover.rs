@@ -11,7 +11,7 @@ use p3_maybe_rayon::{MaybeIntoParIter, ParallelIterator};
 use p3_util::log2_strict_usize;
 use tracing::{info_span, instrument};
 
-use p3_dft::{reverse_slice_index_bits, NaiveDft, TwoAdicSubgroupDft};
+use p3_dft::{deg, reverse_slice_index_bits, NaiveDft, TwoAdicSubgroupDft};
 
 use crate::fold_even_odd::fold_even_odd;
 use crate::{CommitPhaseProofStep, FriConfig, FriProof, InputOpening, QueryProof};
@@ -134,17 +134,14 @@ fn commit_phase<FC: FriConfig>(
     let alpha: FC::Challenge = challenger.sample_ext_element();
     let mut current = reduce_matrices(max_height, &zero_vec, &largest_matrices, alpha);
 
-    let deg = |v: &[FC::Challenge]| {
-        NaiveDft
-            .idft(v.to_vec())
-            .into_iter()
-            .take_while(|x| !x.is_zero())
-            .count()
-    };
-
-    reverse_slice_index_bits(&mut current);
+    // reverse_slice_index_bits(&mut current);
 
     dbg!(deg(&current));
+    dbg!(deg(&col(&largest_matrices[0], 0)));
+    dbg!(deg(&col(&largest_matrices[0], 40)));
+    dbg!(deg(&col(&largest_matrices[1], 0)));
+    dbg!(deg(&col(&largest_matrices[1], 1)));
+
     /*
     for i in 0..(current.len() / 2) {
         current.swap(i * 2, i * 2 + 1)
@@ -194,6 +191,12 @@ fn commit_phase<FC: FriConfig>(
         data,
         final_poly,
     }
+}
+
+fn col<F, M: MatrixRows<F>>(m: &M, c: usize) -> Vec<F> {
+    (0..m.height())
+        .map(|r| m.row(r).into_iter().nth(c).unwrap())
+        .collect_vec()
 }
 
 struct CommitPhaseResult<FC: FriConfig> {
