@@ -11,8 +11,6 @@ use p3_maybe_rayon::{MaybeIntoParIter, ParallelIterator};
 use p3_util::log2_strict_usize;
 use tracing::{info_span, instrument};
 
-use p3_dft::{deg, reverse_slice_index_bits, NaiveDft, TwoAdicSubgroupDft};
-
 use crate::fold_even_odd::fold_even_odd;
 use crate::{CommitPhaseProofStep, FriConfig, FriProof, InputOpening, QueryProof};
 
@@ -67,7 +65,6 @@ fn answer_query<FC: FriConfig>(
     commit_phase_commits: &[<FC::CommitPhaseMmcs as Mmcs<FC::Challenge>>::ProverData],
     index: usize,
 ) -> QueryProof<FC> {
-    // println!("proving query at {index}");
     let input_openings = input_mmcs
         .iter()
         .zip(input_data)
@@ -127,27 +124,14 @@ fn commit_phase<FC: FriConfig>(
     };
 
     let largest_matrices = matrices_with_log_height(log_max_height);
-    for m in &largest_matrices {
-        dbg!(m.dimensions());
-    }
     let zero_vec = vec![FC::Challenge::zero(); max_height];
     let alpha: FC::Challenge = challenger.sample_ext_element();
+    dbg!(alpha);
     let mut current = reduce_matrices(max_height, &zero_vec, &largest_matrices, alpha);
 
-    // reverse_slice_index_bits(&mut current);
-
-    dbg!(deg(&current));
-    dbg!(deg(&col(&largest_matrices[0], 0)));
-    dbg!(deg(&col(&largest_matrices[0], 40)));
-    dbg!(deg(&col(&largest_matrices[1], 0)));
-    dbg!(deg(&col(&largest_matrices[1], 1)));
-
-    /*
-    for i in 0..(current.len() / 2) {
-        current.swap(i * 2, i * 2 + 1)
+    for (i, v) in current.iter().enumerate() {
+        println!("old_eval[{i}] = {v}");
     }
-    dbg!(deg(&current));
-    */
 
     let mut commits = vec![];
     let mut data = vec![];
@@ -164,26 +148,19 @@ fn commit_phase<FC: FriConfig>(
 
         let folded_height = 1 << log_folded_height;
         let beta: FC::Challenge = challenger.sample_ext_element();
-        // dbg!(beta);
         current = fold_even_odd(&current, beta);
 
-        /*
         let matrices = matrices_with_log_height(log_folded_height);
         if !matrices.is_empty() {
             current = reduce_matrices(folded_height, &current, &matrices, alpha);
         }
-        */
-
-        dbg!(deg(&current));
     }
 
     // We should be left with `blowup` evaluations of a constant polynomial.
     assert_eq!(current.len(), config.blowup());
     let final_poly = current[0];
-    // TODO: Re-enable after fixing the interleaving TODO above.
     for x in current {
-        dbg!(x);
-        // assert_eq!(x, final_poly);
+        assert_eq!(x, final_poly);
     }
 
     CommitPhaseResult {
@@ -191,12 +168,6 @@ fn commit_phase<FC: FriConfig>(
         data,
         final_poly,
     }
-}
-
-fn col<F, M: MatrixRows<F>>(m: &M, c: usize) -> Vec<F> {
-    (0..m.height())
-        .map(|r| m.row(r).into_iter().nth(c).unwrap())
-        .collect_vec()
 }
 
 struct CommitPhaseResult<FC: FriConfig> {

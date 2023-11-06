@@ -7,11 +7,11 @@ use p3_commit::{
     DirectMmcs, OpenedValues, OpenedValuesForPoint, OpenedValuesForRound, Pcs, UnivariatePcs,
     UnivariatePcsWithLde,
 };
-use p3_dft::{deg, TwoAdicSubgroupDft};
+use p3_dft::TwoAdicSubgroupDft;
 use p3_field::{ExtensionField, Field, TwoAdicField};
 use p3_interpolation::interpolate_coset;
 use p3_matrix::dense::RowMajorMatrixView;
-use p3_matrix::{Matrix, MatrixRowSlices, MatrixRows};
+use p3_matrix::{MatrixRowSlices, MatrixRows};
 use tracing::{info_span, instrument};
 
 use crate::quotient::QuotientMmcs;
@@ -60,10 +60,8 @@ where
                 .into_iter()
                 .map(|poly| {
                     let input = poly.to_row_major_matrix().to_ext::<Domain>();
-                    let foo = self
-                        .dft
-                        .coset_lde_batch(input, self.ldt.log_blowup(), shift);
-                    foo
+                    self.dft
+                        .coset_lde_batch(input, self.ldt.log_blowup(), shift)
                 })
                 .collect()
         });
@@ -107,10 +105,6 @@ where
                     .iter()
                     .map(|(data, points)| {
                         let matrices = self.mmcs.get_matrices(data);
-                        for m in &matrices {
-                            dbg!(m.dimensions());
-                            dbg!(deg(&m.rows().map(|r| r[0]).collect_vec()));
-                        }
                         points
                             .iter()
                             .map(|&point| eval_at_point(&matrices, point))
@@ -121,6 +115,9 @@ where
 
         let (prover_data, all_points): (Vec<_>, Vec<_>) =
             prover_data_and_points.iter().copied().unzip();
+
+        let coset_shift: Domain =
+            <Self as UnivariatePcsWithLde<Val, Domain, EF, In, Challenger>>::coset_shift(self);
 
         let quotient_mmcs = all_points
             .into_iter()
@@ -145,7 +142,7 @@ where
                 QuotientMmcs::<Domain, EF, _> {
                     inner: self.mmcs.clone(),
                     openings,
-                    _phantom: PhantomData,
+                    coset_shift,
                 }
             })
             .collect_vec();
@@ -163,6 +160,8 @@ where
     ) -> Result<(), Self::Error> {
         let (commits, points): (Vec<Self::Commitment>, Vec<&[EF]>) =
             commits_and_points.iter().cloned().unzip();
+        let coset_shift: Domain =
+            <Self as UnivariatePcsWithLde<Val, Domain, EF, In, Challenger>>::coset_shift(self);
         let quotient_mmcs = points
             .into_iter()
             .zip_eq(values)
@@ -186,7 +185,7 @@ where
                     QuotientMmcs::<Domain, EF, _> {
                         inner: self.mmcs.clone(),
                         openings,
-                        _phantom: PhantomData,
+                        coset_shift,
                     }
                 },
             )
@@ -233,10 +232,4 @@ fn transpose<T: Clone>(vec: Vec<Vec<T>>) -> Vec<Vec<T>> {
     (0..m)
         .map(|r| (0..n).map(|c| vec[c][r].clone()).collect())
         .collect()
-}
-
-fn col<F, M: MatrixRows<F>>(m: &M, c: usize) -> Vec<F> {
-    (0..m.height())
-        .map(|r| m.row(r).into_iter().nth(c).unwrap())
-        .collect_vec()
 }
