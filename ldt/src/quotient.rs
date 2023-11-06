@@ -9,7 +9,7 @@ use p3_matrix::{Dimensions, Matrix, MatrixRowSlices, MatrixRows};
 use p3_util::log2_strict_usize;
 
 /// A wrapper around an Inner MMCS, which transforms each inner value to
-/// `(inner - opened_point) / (x - opened_eval)`.
+/// `(inner - opened_eval) / (x - opened_point)`.
 ///
 /// Since there can be multiple opening points, for each matrix, this transforms an inner opened row
 /// into a concatenation of rows, transformed as above, for each point.

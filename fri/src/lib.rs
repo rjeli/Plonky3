@@ -1,6 +1,6 @@
 //! An implementation of the FRI low-degree test (LDT).
 
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
 
@@ -44,11 +44,11 @@ impl<FC: FriConfig> Ldt<FC::Val, FC::Challenge, FC::InputMmcs, FC::Challenger> f
     fn verify(
         &self,
         input_mmcs: &[FC::InputMmcs],
-        _input_commits: &[<FC::InputMmcs as Mmcs<FC::Challenge>>::Commitment],
+        input_commits: &[<FC::InputMmcs as Mmcs<FC::Challenge>>::Commitment],
         proof: &Self::Proof,
         challenger: &mut FC::Challenger,
     ) -> Result<(), Self::Error> {
-        verify::<FC>(&self.config, input_mmcs, proof, challenger)
+        verify::<FC>(&self.config, input_mmcs, input_commits, proof, challenger)
     }
 }
 

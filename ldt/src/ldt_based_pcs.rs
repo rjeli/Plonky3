@@ -11,7 +11,7 @@ use p3_dft::TwoAdicSubgroupDft;
 use p3_field::{ExtensionField, Field, TwoAdicField};
 use p3_interpolation::interpolate_coset;
 use p3_matrix::dense::RowMajorMatrixView;
-use p3_matrix::{MatrixRowSlices, MatrixRows};
+use p3_matrix::{Matrix, MatrixRowSlices, MatrixRows};
 use tracing::{info_span, instrument};
 
 use crate::quotient::QuotientMmcs;
@@ -60,8 +60,10 @@ where
                 .into_iter()
                 .map(|poly| {
                     let input = poly.to_row_major_matrix().to_ext::<Domain>();
-                    self.dft
-                        .coset_lde_batch(input, self.ldt.log_blowup(), shift)
+                    let foo = self
+                        .dft
+                        .coset_lde_batch(input, self.ldt.log_blowup(), shift);
+                    foo
                 })
                 .collect()
         });
@@ -150,12 +152,42 @@ where
 
     fn verify_multi_batches(
         &self,
-        _commits_and_points: &[(Self::Commitment, &[EF])],
-        _values: OpenedValues<EF>,
-        _proof: &Self::Proof,
-        _challenger: &mut Challenger,
+        commits_and_points: &[(Self::Commitment, &[EF])],
+        values: OpenedValues<EF>,
+        proof: &Self::Proof,
+        challenger: &mut Challenger,
     ) -> Result<(), Self::Error> {
-        Ok(()) // TODO
+        let (commits, points): (Vec<Self::Commitment>, Vec<&[EF]>) =
+            commits_and_points.iter().cloned().unzip();
+        let quotient_mmcs = points
+            .into_iter()
+            .zip_eq(values)
+            .map(
+                |(points, opened_values_for_round_by_point): (&[EF], OpenedValuesForRound<EF>)| {
+                    let opened_values_for_round_by_matrix =
+                        transpose(opened_values_for_round_by_point.to_vec());
+                    let openings = opened_values_for_round_by_matrix
+                        .into_iter()
+                        .map(|opened_values_for_matrix| {
+                            points
+                                .iter()
+                                .zip(opened_values_for_matrix)
+                                .map(|(&point, opened_values_for_point)| Opening::<EF> {
+                                    point,
+                                    values: opened_values_for_point,
+                                })
+                                .collect()
+                        })
+                        .collect_vec();
+                    QuotientMmcs::<Domain, EF, _> {
+                        inner: self.mmcs.clone(),
+                        openings,
+                        _phantom: PhantomData,
+                    }
+                },
+            )
+            .collect_vec();
+        self.ldt.verify(&quotient_mmcs, &commits, proof, challenger)
     }
 }
 

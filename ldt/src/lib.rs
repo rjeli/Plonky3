@@ -1,6 +1,6 @@
 //! This crate contains a framework for low-degree tests (LDTs).
 
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 mod ldt_based_pcs;
 mod quotient;

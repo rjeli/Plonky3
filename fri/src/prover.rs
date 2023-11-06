@@ -11,6 +11,8 @@ use p3_maybe_rayon::{MaybeIntoParIter, ParallelIterator};
 use p3_util::log2_strict_usize;
 use tracing::{info_span, instrument};
 
+use p3_dft::{reverse_slice_index_bits, NaiveDft, TwoAdicSubgroupDft};
+
 use crate::fold_even_odd::fold_even_odd;
 use crate::{CommitPhaseProofStep, FriConfig, FriProof, InputOpening, QueryProof};
 
@@ -65,6 +67,7 @@ fn answer_query<FC: FriConfig>(
     commit_phase_commits: &[<FC::CommitPhaseMmcs as Mmcs<FC::Challenge>>::ProverData],
     index: usize,
 ) -> QueryProof<FC> {
+    // println!("proving query at {index}");
     let input_openings = input_mmcs
         .iter()
         .zip(input_data)
@@ -124,9 +127,30 @@ fn commit_phase<FC: FriConfig>(
     };
 
     let largest_matrices = matrices_with_log_height(log_max_height);
+    for m in &largest_matrices {
+        dbg!(m.dimensions());
+    }
     let zero_vec = vec![FC::Challenge::zero(); max_height];
     let alpha: FC::Challenge = challenger.sample_ext_element();
     let mut current = reduce_matrices(max_height, &zero_vec, &largest_matrices, alpha);
+
+    let deg = |v: &[FC::Challenge]| {
+        NaiveDft
+            .idft(v.to_vec())
+            .into_iter()
+            .take_while(|x| !x.is_zero())
+            .count()
+    };
+
+    reverse_slice_index_bits(&mut current);
+
+    dbg!(deg(&current));
+    /*
+    for i in 0..(current.len() / 2) {
+        current.swap(i * 2, i * 2 + 1)
+    }
+    dbg!(deg(&current));
+    */
 
     let mut commits = vec![];
     let mut data = vec![];
@@ -143,21 +167,27 @@ fn commit_phase<FC: FriConfig>(
 
         let folded_height = 1 << log_folded_height;
         let beta: FC::Challenge = challenger.sample_ext_element();
+        // dbg!(beta);
         current = fold_even_odd(&current, beta);
 
+        /*
         let matrices = matrices_with_log_height(log_folded_height);
         if !matrices.is_empty() {
             current = reduce_matrices(folded_height, &current, &matrices, alpha);
         }
+        */
+
+        dbg!(deg(&current));
     }
 
     // We should be left with `blowup` evaluations of a constant polynomial.
     assert_eq!(current.len(), config.blowup());
     let final_poly = current[0];
     // TODO: Re-enable after fixing the interleaving TODO above.
-    // for x in current {
-    //     assert_eq!(x, final_poly);
-    // }
+    for x in current {
+        dbg!(x);
+        // assert_eq!(x, final_poly);
+    }
 
     CommitPhaseResult {
         commits,

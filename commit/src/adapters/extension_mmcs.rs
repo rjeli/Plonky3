@@ -48,6 +48,7 @@ where
     }
 
     fn get_matrices<'a>(&'a self, prover_data: &'a Self::ProverData) -> Vec<Self::Mat<'a>> {
+        println!("extension get_matrices");
         self.inner
             .get_matrices(prover_data)
             .into_iter()

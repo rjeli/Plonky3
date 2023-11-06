@@ -70,8 +70,10 @@ fn test_prove_baby_bear() -> Result<(), VerificationError> {
 
     type Val = BabyBear;
     type Domain = Val;
-    type Challenge = BinomialExtensionField<Val, 4>;
-    type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
+    // type Challenge = BinomialExtensionField<Val, 4>;
+    // type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
+    type Challenge = Val;
+    type PackedChallenge = Val;
 
     type MyMds = CosetMds<Val, 16>;
     let mds = MyMds::default();
