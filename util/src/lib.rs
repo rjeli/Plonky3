@@ -33,6 +33,13 @@ pub fn log2_strict_usize(n: usize) -> usize {
     res as usize
 }
 
+// This is not a conventional rotate right.
+// It rotates by one bit, wrapping at `bits`
+pub fn rotate_bits_right(x: usize, bits: usize) -> usize {
+    let mask = (1 << (bits - 1)) - 1;
+    (x >> (bits - 1)) | ((x & mask) << 1)
+}
+
 /// Returns `[0, ..., N - 1]`.
 #[must_use]
 pub const fn indices_arr<const N: usize>() -> [usize; N] {

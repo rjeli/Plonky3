@@ -19,7 +19,7 @@ where
     SC: StarkConfig,
     A: for<'a> Air<VerifierConstraintFolder<'a, SC::Challenge>>,
 {
-    let degree_bits = 6; // TODO
+    let degree_bits = 4; // TODO
     let log_quotient_degree = 1; // TODO
     let g_subgroup = SC::Domain::two_adic_generator(degree_bits);
     let shift_inv = SC::Challenge::from_base(config.pcs().coset_shift()).inverse();

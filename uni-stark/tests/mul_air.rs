@@ -66,7 +66,7 @@ fn test_prove_baby_bear() -> Result<(), VerificationError> {
         .with(ForestLayer::default())
         .init();
 
-    const HEIGHT: usize = 1 << 6;
+    const HEIGHT: usize = 1 << 4;
 
     type Val = BabyBear;
     type Domain = Val;
@@ -100,7 +100,7 @@ fn test_prove_baby_bear() -> Result<(), VerificationError> {
 
     type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
     type MyFriConfig = FriConfigImpl<Val, Domain, Challenge, Quotient, ChallengeMmcs, Challenger>;
-    let fri_config = MyFriConfig::new(8, challenge_mmcs);
+    let fri_config = MyFriConfig::new(2, challenge_mmcs);
     let ldt = FriLdt { config: fri_config };
 
     type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;

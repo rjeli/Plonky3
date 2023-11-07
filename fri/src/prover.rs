@@ -4,11 +4,12 @@ use alloc::vec::Vec;
 use itertools::Itertools;
 use p3_challenger::{CanObserve, CanSampleBits, FieldChallenger};
 use p3_commit::{DirectMmcs, Mmcs};
-use p3_field::{AbstractField, ExtensionField, Field};
+use p3_dft::reverse_slice_index_bits;
+use p3_field::{AbstractField, ExtensionField, Field, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::{Matrix, MatrixRows};
+use p3_matrix::{Matrix, MatrixRows, MatrixTranspose};
 use p3_maybe_rayon::{MaybeIntoParIter, ParallelIterator};
-use p3_util::log2_strict_usize;
+use p3_util::{log2_strict_usize, rotate_bits_right};
 use tracing::{info_span, instrument};
 
 use crate::fold_even_odd::fold_even_odd;
@@ -46,6 +47,7 @@ pub(crate) fn prove<FC: FriConfig>(
                     input_data,
                     &commit_phase_result.data,
                     index,
+                    log_max_height,
                 )
             })
             .collect()
@@ -64,6 +66,7 @@ fn answer_query<FC: FriConfig>(
     input_data: &[&<FC::InputMmcs as Mmcs<FC::Challenge>>::ProverData],
     commit_phase_commits: &[<FC::CommitPhaseMmcs as Mmcs<FC::Challenge>>::ProverData],
     index: usize,
+    log_max_height: usize,
 ) -> QueryProof<FC> {
     let input_openings = input_mmcs
         .iter()
@@ -81,7 +84,7 @@ fn answer_query<FC: FriConfig>(
         .iter()
         .enumerate()
         .map(|(i, commit)| {
-            let index_i = index >> i;
+            let index_i = rotate_bits_right(index >> i, log_max_height - i);
             let index_i_sibling = index_i ^ 1;
             let index_pair = index_i >> 1;
 
@@ -90,6 +93,7 @@ fn answer_query<FC: FriConfig>(
             assert_eq!(opened_rows.len(), 1);
             let opened_row = opened_rows.pop().unwrap();
             assert_eq!(opened_row.len(), 2, "Committed data should be in pairs");
+            println!("opened [{}, {}]", opened_row[0], opened_row[1]);
             let sibling_value = opened_row[index_i_sibling % 2];
 
             CommitPhaseProofStep {
@@ -129,30 +133,44 @@ fn commit_phase<FC: FriConfig>(
     dbg!(alpha);
     let mut current = reduce_matrices(max_height, &zero_vec, &largest_matrices, alpha);
 
+    // reverse_slice_index_bits(&mut current);
+
     for (i, v) in current.iter().enumerate() {
         println!("old_eval[{i}] = {v}");
     }
+
+    let mut shift_inv = FC::Challenge::generator().inverse();
+    let one_half = FC::Challenge::two().inverse();
 
     let mut commits = vec![];
     let mut data = vec![];
 
     for log_folded_height in (config.log_blowup()..log_max_height).rev() {
         // TODO: Can we avoid cloning?
-        let (commit, prover_data) = config
-            .commit_phase_mmcs()
-            // TODO: Need to interleave the other way, unless we change things so the input comes bit-reversed.
-            .commit_matrix(RowMajorMatrix::new(current.clone(), 2));
+        let evals = RowMajorMatrix::new(current.clone(), 1 << log_folded_height).transpose();
+        assert_eq!(evals.width(), 2);
+        // let mut evals = current.clone();
+        /*
+        reverse_slice_index_bits(&mut evals);
+        let evals = RowMajorMatrix::new(evals, 2);
+        */
+        println!("log_folded_height={log_folded_height}");
+        for (i, r) in evals.rows().enumerate() {
+            println!("evals.row({i}) = [{}, {}]", r[0], r[1]);
+        }
+        let (commit, prover_data) = config.commit_phase_mmcs().commit_matrix(evals);
         challenger.observe(commit.clone());
         commits.push(commit);
         data.push(prover_data);
 
-        let folded_height = 1 << log_folded_height;
         let beta: FC::Challenge = challenger.sample_ext_element();
-        current = fold_even_odd(&current, beta);
+        current = fold_even_odd(&current, shift_inv, beta);
+
+        shift_inv = shift_inv.square();
 
         let matrices = matrices_with_log_height(log_folded_height);
         if !matrices.is_empty() {
-            current = reduce_matrices(folded_height, &current, &matrices, alpha);
+            current = reduce_matrices(1 << log_folded_height, &current, &matrices, alpha);
         }
     }
 
