@@ -5,6 +5,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [features]
+default = ["std"]
 std = ["p3-fri/std", "p3-ldt/std", "p3-merkle-tree/std", "p3-commit/std"]
 
 [dependencies]

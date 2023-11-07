@@ -33,11 +33,12 @@ pub fn log2_strict_usize(n: usize) -> usize {
     res as usize
 }
 
-// This is not a conventional rotate right.
-// It rotates by one bit, wrapping at `bits`
-pub fn rotate_bits_right(x: usize, bits: usize) -> usize {
-    let mask = (1 << (bits - 1)) - 1;
-    (x >> (bits - 1)) | ((x & mask) << 1)
+// Rotate left 1 bit, wrapping at `n` bits.
+// This maps an index into an array to an index into its transpose.
+pub fn transpose_index_bits(x: usize, n: usize) -> usize {
+    let mask = (1 << (n - 1)) - 1;
+    // top_bit | (bottom_bits << 1)
+    (x >> (n - 1)) | ((x & mask) << 1)
 }
 
 /// Returns `[0, ..., N - 1]`.
@@ -90,5 +91,36 @@ pub fn branch_hint() {
     ))]
     unsafe {
         core::arch::asm!("", options(nomem, nostack, preserves_flags));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    extern crate alloc;
+    use alloc::vec;
+    use p3_matrix::{dense::RowMajorMatrix, MatrixTranspose};
+
+    #[test]
+    fn test_transpose_index_bits() {
+        assert_eq!(transpose_index_bits(0b0, 1), 0b0);
+        assert_eq!(transpose_index_bits(0b1, 1), 0b1);
+        assert_eq!(transpose_index_bits(0b01, 2), 0b10);
+        assert_eq!(transpose_index_bits(0b10, 2), 0b01);
+        assert_eq!(transpose_index_bits(0b001, 3), 0b010);
+        assert_eq!(transpose_index_bits(0b011, 3), 0b110);
+        assert_eq!(transpose_index_bits(0b101, 3), 0b011);
+        assert_eq!(transpose_index_bits(0b0110, 4), 0b1100);
+        assert_eq!(transpose_index_bits(0b1010, 4), 0b0101);
+
+        let x = vec![0, 1, 2, 3, 4, 5, 6, 7];
+        let n = log2_strict_usize(x.len());
+        let xt = RowMajorMatrix::new(x.clone(), x.len() / 2)
+            .transpose()
+            .values;
+        assert_eq!(&xt, &[0, 4, 1, 5, 2, 6, 3, 7]);
+        for i in 0..x.len() {
+            assert_eq!(x[i], xt[transpose_index_bits(i, n)]);
+        }
     }
 }

@@ -9,7 +9,7 @@ use p3_field::{AbstractField, ExtensionField, Field, TwoAdicField};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::{Matrix, MatrixRows, MatrixTranspose};
 use p3_maybe_rayon::{MaybeIntoParIter, ParallelIterator};
-use p3_util::{log2_strict_usize, rotate_bits_right};
+use p3_util::{log2_strict_usize, transpose_index_bits};
 use tracing::{info_span, instrument};
 
 use crate::fold_even_odd::fold_even_odd;
@@ -84,7 +84,8 @@ fn answer_query<FC: FriConfig>(
         .iter()
         .enumerate()
         .map(|(i, commit)| {
-            let index_i = rotate_bits_right(index >> i, log_max_height - i);
+            let n_index_bits = log_max_height - i;
+            let index_i = transpose_index_bits(index & ((1 << n_index_bits) - 1), n_index_bits);
             let index_i_sibling = index_i ^ 1;
             let index_pair = index_i >> 1;
 
@@ -140,7 +141,6 @@ fn commit_phase<FC: FriConfig>(
     }
 
     let mut shift_inv = FC::Challenge::generator().inverse();
-    let one_half = FC::Challenge::two().inverse();
 
     let mut commits = vec![];
     let mut data = vec![];

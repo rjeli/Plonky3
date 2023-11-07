@@ -70,10 +70,10 @@ fn test_prove_baby_bear() -> Result<(), VerificationError> {
 
     type Val = BabyBear;
     type Domain = Val;
-    // type Challenge = BinomialExtensionField<Val, 4>;
-    // type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
-    type Challenge = Val;
-    type PackedChallenge = Val;
+    type Challenge = BinomialExtensionField<Val, 4>;
+    type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
+    // type Challenge = Val;
+    // type PackedChallenge = Val;
 
     type MyMds = CosetMds<Val, 16>;
     let mds = MyMds::default();
@@ -100,7 +100,7 @@ fn test_prove_baby_bear() -> Result<(), VerificationError> {
 
     type Quotient = QuotientMmcs<Domain, Challenge, ValMmcs>;
     type MyFriConfig = FriConfigImpl<Val, Domain, Challenge, Quotient, ChallengeMmcs, Challenger>;
-    let fri_config = MyFriConfig::new(2, challenge_mmcs);
+    let fri_config = MyFriConfig::new(40, challenge_mmcs);
     let ldt = FriLdt { config: fri_config };
 
     type Pcs = FriBasedPcs<MyFriConfig, ValMmcs, Dft, Challenger>;

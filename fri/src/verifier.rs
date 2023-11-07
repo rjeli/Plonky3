@@ -6,7 +6,7 @@ use p3_commit::Mmcs;
 use p3_dft::{reverse_bits, reverse_bits_len};
 use p3_field::{AbstractField, TwoAdicField};
 use p3_matrix::Dimensions;
-use p3_util::rotate_bits_right;
+use p3_util::transpose_index_bits;
 
 use crate::{FriConfig, FriProof, QueryProof};
 
@@ -117,7 +117,9 @@ fn verify_query<FC: FriConfig>(
     for (i, (commit, step, &beta)) in
         izip!(commit_phase_commits, &proof.commit_phase_openings, betas).enumerate()
     {
-        let index_i = rotate_bits_right(index >> i, log_max_height - i);
+        let n_index_bits = log_max_height - i;
+        let index_i = transpose_index_bits(index & ((1 << n_index_bits) - 1), n_index_bits);
+        // let index_i = transpose_index_bits(index >> i, log_max_height - i);
         let index_i_sibling = index_i ^ 1;
         let index_pair = index_i >> 1;
 
@@ -139,24 +141,25 @@ fn verify_query<FC: FriConfig>(
             step.sibling_value
         );
 
-        config
-            .commit_phase_mmcs()
-            .verify_batch(
-                commit,
-                dims,
-                index_pair,
-                &[evals.clone()],
-                &step.opening_proof,
-            )
-            .map_err(|e| dbg!("verify error"));
+        let r = config.commit_phase_mmcs().verify_batch(
+            commit,
+            dims,
+            index_pair,
+            &[evals.clone()],
+            &step.opening_proof,
+        );
+        if r.is_ok() {
+            println!("verified ✅");
+        } else {
+            println!("verified ❌");
+        }
 
         let mut xs = [x; 2];
-        xs[index_i % 2] *= FC::Challenge::two_adic_generator(1);
+        // this is def correct, it works for idx=0, idx=31
+        xs[index_i_sibling % 2] *= FC::Challenge::two_adic_generator(1);
         old_eval = evals[0] + (beta - xs[0]) * (evals[1] - evals[0]) / (xs[1] - xs[0]);
 
         x = x.square();
-
-        println!("verified commit step");
 
         // todo
         /*
