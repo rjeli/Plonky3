@@ -81,12 +81,7 @@ where
     let (opened_values, opening_proof) = pcs.open_multi_batches(
         &[
             (&trace_data, &[zeta, zeta * g_subgroup]),
-            (
-                &quotient_data,
-                // Since the quotient is computed from the shifted trace LDE,
-                // we need to correct for the extra shift.
-                &[(zeta * shift_inv).exp_power_of_2(log_quotient_degree)],
-            ),
+            (&quotient_data, &[zeta.exp_power_of_2(log_quotient_degree)]),
         ],
         challenger,
     );
