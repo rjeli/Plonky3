@@ -18,21 +18,21 @@ use p3_util::log2_strict_usize;
 /// into a concatenation of rows, transformed as above, for each point.
 #[derive(Clone)]
 pub struct QuotientMmcs<F, EF, Inner: Mmcs<F>> {
-    pub(crate) inner: Inner,
+    pub inner: Inner,
 
     /// For each matrix, a list of claimed openings, one for each point that we open that batch of
     /// polynomials at.
-    pub(crate) openings: Vec<Vec<Opening<EF>>>,
+    pub openings: Vec<Vec<Opening<EF>>>,
 
     // The coset shift for the inner MMCS's evals, to correct `x` in the denominator.
-    pub(crate) coset_shift: F,
+    pub coset_shift: F,
 }
 
 /// A claimed opening.
 #[derive(Clone)]
-pub(crate) struct Opening<F> {
-    pub(crate) point: F,
-    pub(crate) values: Vec<F>,
+pub struct Opening<F> {
+    pub point: F,
+    pub values: Vec<F>,
 }
 
 impl<F, EF, Inner> Mmcs<EF> for QuotientMmcs<F, EF, Inner>

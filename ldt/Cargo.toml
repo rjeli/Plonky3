@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
+[lib]
+bench = false
+
 [dependencies]
 p3-challenger = { path = "../challenger" }
 p3-commit = { path = "../commit" }
@@ -15,3 +18,19 @@ p3-util = { path = "../util" }
 
 itertools = "0.11.0"
 tracing = "0.1.37"
+
+[dev-dependencies]
+p3-baby-bear = { path = "../baby-bear" }
+p3-goldilocks = { path = "../goldilocks" }
+p3-mersenne-31 = { path = "../mersenne-31" }
+p3-dft = { path = "../dft" }
+p3-mds = { path = "../mds" }
+p3-merkle-tree = { path = "../merkle-tree" }
+p3-poseidon2 = { path = "../poseidon2" }
+p3-symmetric = { path = "../symmetric" }
+criterion = "0.5.1"
+rand = "0.8.5"
+
+[[bench]]
+name = "quotient"
+harness = false
