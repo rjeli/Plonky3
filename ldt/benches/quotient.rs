@@ -38,8 +38,8 @@ fn bench_quotient(c: &mut Criterion) {
     let mut rng = thread_rng();
     let coset_shift = Val::generator();
     let inner = inner_mmcs();
-    for width in [128, 1024] {
-        for log_height in [10, 12, 14] {
+    for width in [1024] {
+        for log_height in [12] {
             let mut group = c.benchmark_group("quotient");
             group.sample_size(10);
 
@@ -58,6 +58,7 @@ fn bench_quotient(c: &mut Criterion) {
                 coset_shift,
             };
 
+			/*
             group.bench_with_input(
                 BenchmarkId::new("ext_quotient", format!("{}x{}", width, 1 << log_height)),
                 &data,
@@ -72,6 +73,7 @@ fn bench_quotient(c: &mut Criterion) {
                     });
                 },
             );
+            */
 
             group.bench_with_input(
                 BenchmarkId::new("minpoly", format!("{}x{}", width, 1 << log_height)),

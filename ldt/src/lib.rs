@@ -205,46 +205,40 @@ where
     // and your trace width is a multiple of 4.
     let mut qp = RowMajorMatrix::new(vec![F::zero(); mat.width() * mat.height()], mat.width());
     debug_span!("fill qp").in_scope(|| {
-        let rs_at_x_span = debug_span!("eval r(x) at x");
-        let quotient_span = debug_span!("eval qp");
         for i in 0..height {
-            // reduce rs horizontally
-            /*
-            let x_pows = F::Packing::from_fn(|j| xs[i].exp_u64(j as u64));
-            let rs_at_x: Vec<F> = rs_at_x_span.in_scope(|| {
-                rs.iter()
-                    .map(|r| {
-                        let packed_r = *F::Packing::from_slice(r);
-                        // fall back to scalar code to horizontally sum BB4 -> BB
-                        (packed_r * x_pows).as_slice().iter().copied().sum()
-                    })
-                    .collect_vec()
-            });
-            */
-
-            // [(1,1,1,1),(x,x,x,x),(x^2,x^2,x^2,x^2),(x3,x^3,x^3,x^3)]
-            let x_pows: [F::Packing; 4] = (0..4)
-                .map(|j| F::Packing::from(xs[i].exp_u64(j)))
-                .collect_vec()
-                .try_into()
-                .unwrap();
-
-            let p_row = F::Packing::pack_slice(mat.row_slice(i));
-            let p_qp_row = F::Packing::pack_slice_mut(qp.row_slice_mut(i));
-            // let p_r_at_x = F::Packing::pack_slice(&rs_at_x);
-            let p_m_inv = F::Packing::from(m_invs[i]);
-
-            for (y, qp_y, r) in izip!(p_row, p_qp_row, &rs_transposed) {
-                let mut sum = F::Packing::zero();
-                for (ch, x_pow) in r.iter().zip(x_pows) {
-                    sum += *ch * x_pow;
-                }
-                *qp_y = (*y - sum) * p_m_inv;
-            }
+            fill_row(
+                qp.row_slice_mut(i),
+                xs[i],
+                mat.row_slice(i),
+                m_invs[i],
+                &rs_transposed,
+            );
         }
     });
 
     qp
+}
+
+#[inline(never)]
+pub fn fill_row<F: Field>(qp_ys: &mut [F], x: F, ys: &[F], m_inv: F, rs: &[[F::Packing; 4]]) {
+    // [(x,x,x,x),(x^2,x^2,x^2,x^2),(x3,x^3,x^3,x^3)]
+    let x_pows: [F::Packing; 3] = (1..4)
+        .map(|j| F::Packing::from(x.exp_u64(j)))
+        .collect_vec()
+        .try_into()
+        .unwrap();
+
+    let p_ys = F::Packing::pack_slice(ys);
+    let p_qp_ys = F::Packing::pack_slice_mut(qp_ys);
+    let p_m_inv = F::Packing::from(m_inv);
+
+    for (y, qp_y, r) in izip!(p_ys, p_qp_ys, rs) {
+        let mut sum = *y - r[0];
+        for (ch, x_pow) in r[1..].iter().zip(x_pows) {
+            sum -= *ch * x_pow;
+        }
+        *qp_y = sum * p_m_inv;
+    }
 }
 
 #[cfg(test)]
