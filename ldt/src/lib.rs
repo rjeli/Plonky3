@@ -173,6 +173,19 @@ where
 
     // calculate r for each poly
     let rs = remainder_polys(alpha, values);
+    // convert [(a,b,c,d), (e,f,g,h), ..]
+    // into [[(a,e,..), (b,f,..)]]
+    let mut rs_transposed: Vec<[F::Packing; 4]> = vec![];
+    for ch in rs.chunks_exact(4) {
+        let ch: [[F; 4]; 4] = ch.into_iter().copied().collect_vec().try_into().unwrap();
+        rs_transposed.push(
+            (0..4)
+                .map(|i| *F::Packing::from_slice(&ch.map(|coeffs| coeffs[i])))
+                .collect_vec()
+                .try_into()
+                .unwrap(),
+        );
+    }
 
     let xs = cyclic_subgroup_coset_known_order(F::two_adic_generator(log_height), shift, height)
         .collect_vec();
@@ -196,6 +209,7 @@ where
         let quotient_span = debug_span!("eval qp");
         for i in 0..height {
             // reduce rs horizontally
+            /*
             let x_pows = F::Packing::from_fn(|j| xs[i].exp_u64(j as u64));
             let rs_at_x: Vec<F> = rs_at_x_span.in_scope(|| {
                 rs.iter()
@@ -206,17 +220,27 @@ where
                     })
                     .collect_vec()
             });
+            */
+
+            // [(1,1,1,1),(x,x,x,x),(x^2,x^2,x^2,x^2),(x3,x^3,x^3,x^3)]
+            let x_pows: [F::Packing; 4] = (0..4)
+                .map(|j| F::Packing::from(xs[i].exp_u64(j)))
+                .collect_vec()
+                .try_into()
+                .unwrap();
 
             let p_row = F::Packing::pack_slice(mat.row_slice(i));
             let p_qp_row = F::Packing::pack_slice_mut(qp.row_slice_mut(i));
-            let p_r_at_x = F::Packing::pack_slice(&rs_at_x);
+            // let p_r_at_x = F::Packing::pack_slice(&rs_at_x);
             let p_m_inv = F::Packing::from(m_invs[i]);
 
-            quotient_span.in_scope(|| {
-                for (y, qp_y, r) in izip!(p_row, p_qp_row, p_r_at_x) {
-                    *qp_y = (*y - *r) * p_m_inv;
+            for (y, qp_y, r) in izip!(p_row, p_qp_row, &rs_transposed) {
+                let mut sum = F::Packing::zero();
+                for (ch, x_pow) in r.iter().zip(x_pows) {
+                    sum += *ch * x_pow;
                 }
-            });
+                *qp_y = (*y - sum) * p_m_inv;
+            }
         }
     });
 
