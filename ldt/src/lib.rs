@@ -222,8 +222,11 @@ where
 #[inline(never)]
 pub fn fill_row<F: Field>(qp_ys: &mut [F], x: F, ys: &[F], m_inv: F, rs: &[[F::Packing; 4]]) {
     // [(x,x,x,x),(x^2,x^2,x^2,x^2),(x3,x^3,x^3,x^3)]
-    let x_pows: [F::Packing; 3] = (1..4)
-        .map(|j| F::Packing::from(x.exp_u64(j)))
+    let x_pows: [F::Packing; 3] = x
+        .powers()
+        .skip(1)
+        .take(3)
+        .map(F::Packing::from)
         .collect_vec()
         .try_into()
         .unwrap();

@@ -58,7 +58,6 @@ fn bench_quotient(c: &mut Criterion) {
                 coset_shift,
             };
 
-			/*
             group.bench_with_input(
                 BenchmarkId::new("ext_quotient", format!("{}x{}", width, 1 << log_height)),
                 &data,
@@ -73,7 +72,6 @@ fn bench_quotient(c: &mut Criterion) {
                     });
                 },
             );
-            */
 
             group.bench_with_input(
                 BenchmarkId::new("minpoly", format!("{}x{}", width, 1 << log_height)),
