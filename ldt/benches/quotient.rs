@@ -7,6 +7,7 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRows};
 use p3_util::log2_strict_usize;
 use rand::{thread_rng, Rng};
 
+use p3_dft::{Radix2Dit, TwoAdicSubgroupDft};
 use p3_baby_bear::BabyBear;
 use p3_field::{
     extension::{BinomialExtensionField, HasFrobenuis},
@@ -42,10 +43,11 @@ fn bench_quotient(c: &mut Criterion) {
             let mut group = c.benchmark_group("quotient");
             group.sample_size(10);
 
-            let trace: RowMajorMatrix<Val> = RowMajorMatrix::rand(&mut rng, 1 << log_height, width);
-            let (comm, data) = inner.commit_matrix(trace.clone());
+            let trace: RowMajorMatrix<Val> = RowMajorMatrix::rand(&mut rng, 1 << (log_height - 1), width);
+            let lde = Radix2Dit.coset_lde_batch(trace, 1, coset_shift);
+            let (comm, data) = inner.commit_matrix(lde.clone());
             let point: Challenge = rng.gen();
-            let values = interpolate_coset(&trace, coset_shift, point);
+            let values = interpolate_coset(&lde, coset_shift, point);
 
             let mmcs = QuotientMmcs {
                 inner: inner.clone(),
@@ -75,7 +77,7 @@ fn bench_quotient(c: &mut Criterion) {
                 BenchmarkId::new("minpoly", format!("{}x{}", width, 1 << log_height)),
                 &(&inner, &data, point, &values),
                 |b, (inner, data, point, values)| {
-                    b.iter(|| black_box(minpoly_quotient(*inner, data, *point, values)));
+                    b.iter(|| black_box(minpoly_quotient(*inner, data, *point, values, coset_shift)));
                 },
             );
         }

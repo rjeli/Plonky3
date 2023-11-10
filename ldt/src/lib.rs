@@ -19,7 +19,7 @@ use p3_field::{
 };
 use p3_matrix::{
     dense::{RowMajorMatrix, RowMajorMatrixView},
-    Dimensions, Matrix, MatrixRowSlices,
+    Dimensions, Matrix, MatrixRowSlices, MatrixRowSlicesMut,
 };
 use p3_util::log2_strict_usize;
 pub use quotient::*;
@@ -178,7 +178,7 @@ where
         .collect_vec();
 
     // calculate m
-    let m_invs = debug_span!("m_invs").in_scope(|| {
+    let m_invs: Vec<F> = debug_span!("m_invs").in_scope(|| {
         let m = minpoly(alpha);
         batch_multiplicative_inverse(
             &xs.iter()
@@ -187,17 +187,36 @@ where
         )
     });
 
+    // very optimistic
+    // assumes your extension degree is 4, your packing width is 4,
+    // and your trace width is a multiple of 4.
     let mut qp = RowMajorMatrix::new(vec![F::zero(); mat.width() * mat.height()], mat.width());
     debug_span!("fill qp").in_scope(|| {
-        for (row, qp_row, x, m_inv) in izip!(mat.rows(), qp.rows_mut(), xs, m_invs) {
-            let x_pows: [F; 4] = (0..4)
-                .map(|i| x.exp_u64(i))
-                .collect_vec()
-                .try_into()
-                .unwrap();
-            for (y, qp_y, r) in izip!(row, qp_row, &rs) {
-                *qp_y = (*y - F::dot_product(&x_pows, &r)) * m_inv;
-            }
+        let rs_at_x_span = debug_span!("eval r(x) at x");
+        let quotient_span = debug_span!("eval qp");
+        for i in 0..height {
+            // reduce rs horizontally
+            let x_pows = F::Packing::from_fn(|j| xs[i].exp_u64(j as u64));
+            let rs_at_x: Vec<F> = rs_at_x_span.in_scope(|| {
+                rs.iter()
+                    .map(|r| {
+                        let packed_r = *F::Packing::from_slice(r);
+                        // fall back to scalar code to horizontally sum BB4 -> BB
+                        (packed_r * x_pows).as_slice().iter().copied().sum()
+                    })
+                    .collect_vec()
+            });
+
+            let p_row = F::Packing::pack_slice(mat.row_slice(i));
+            let p_qp_row = F::Packing::pack_slice_mut(qp.row_slice_mut(i));
+            let p_r_at_x = F::Packing::pack_slice(&rs_at_x);
+            let p_m_inv = F::Packing::from(m_invs[i]);
+
+            quotient_span.in_scope(|| {
+                for (y, qp_y, r) in izip!(p_row, p_qp_row, p_r_at_x) {
+                    *qp_y = (*y - *r) * p_m_inv;
+                }
+            });
         }
     });
 
